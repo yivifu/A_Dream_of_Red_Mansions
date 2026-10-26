@@ -574,7 +574,6 @@
 	 *  拼音按钮显示拼音
 	 */
 	function handleSelection() {
-
 		const sel = window.getSelection();
 		const currentText = sel.toString();
 		// 判断：当前存在非空选区 → 用户选中文字，更新缓存
