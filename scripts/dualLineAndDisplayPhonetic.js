@@ -567,7 +567,6 @@
 	let userSelectActive = false;
 	let dictLoading = false; // 加载拼音数据的全局锁
 	let floatBtn;
-	let isSelecting = false;
 
 	/** 响应selectionchange事件，控制拼音按钮显隐，并缓存选择的文本
      *  Calibre阅读器发生选择文本变化时，会弹出自身控件，这时网页元素不能再响应
@@ -575,8 +574,6 @@
 	 *  拼音按钮显示拼音
 	 */
 	function handleSelection() {
-		if (!isSelecting)  return;
-		isSelecting = false;
 
 		const sel = window.getSelection();
 		const currentText = sel.toString();
@@ -866,16 +863,16 @@
 		// =========事件委托：监听整个document，适配Calibre翻页重建DOM，不需要重复绑定=========
 		document.addEventListener('click', function(e) {
 			// 优先级1：判断是否点击拼音按钮
-			const targetBtn = e.target.closest('button#pinyin-float-btn');
+			const targetBtn = e.target.closest('button#pinyin-float-btn');		
 			if (targetBtn) {
 				e.preventDefault();
-				e.stopPropagation();
+				e.stopPropagation();				
+				targetBtn.style.display = 'none';
 				if (!cachedSelectedText.trim()) return;
 
 				noteContentWrap.innerHTML = renderPinyinHtml(cachedSelectedText);
 				noteOverlay.style.display = 'flex';
 				placeEle(noteOverlay, cachedSeclectedRect);
-				targetBtn.style.display = 'none';
 				return;
 			}
 			// 优先级2：判断是否点击脚注引用 a.noteref
@@ -895,12 +892,14 @@
 			}
 		});
 
-		// 监听选中开始事件，标记进入手动选中状态
-		document.addEventListener('selectstart', () => {
-			isSelecting = true;
+		let timer;
+		document.addEventListener('selectionchange', () => {
+			clearTimeout(timer);
+			timer = setTimeout(() => {
+				// 选区稳定后执行一次
+				handleSelection();
+			}, 200);
 		});
-		// 鼠标抬起时，如果isSelecting为true，则完成了文本选择,显示拼音按钮
-		document.addEventListener('mouseup', handleSelection);
 
 	}
 
