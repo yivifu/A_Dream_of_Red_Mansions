@@ -561,10 +561,13 @@
 	}
 
 	/******************************查选择文本的拼音******************/
-	let cachedSelectedText = ""; // 已选择的文本
+	let cachedSelectedText = ''; // 已选择的文本
+	let cachedSeclectedRect = null;
 	// 标记：是否是用户主动选择文本
 	let userSelectActive = false;
 	let dictLoading = false; // 加载拼音数据的全局锁
+	let floatBtn;
+	let isSelecting = false;
 
 	/** 响应selectionchange事件，控制拼音按钮显隐，并缓存选择的文本
      *  Calibre阅读器发生选择文本变化时，会弹出自身控件，这时网页元素不能再响应
@@ -572,30 +575,64 @@
 	 *  拼音按钮显示拼音
 	 */
 	function handleSelection() {
-		const floatBtn = document.getElementById("pinyin-float-btn");
-		if (!floatBtn) return;
+		if (!isSelecting)  return;
+		isSelecting = false;
 
 		const sel = window.getSelection();
 		const currentText = sel.toString();
-
 		// 判断：当前存在非空选区 → 用户选中文字，更新缓存
-		if (currentText.trim() !== "") {
+		if (currentText.trim() !== '') {
 			cachedSelectedText = currentText;
 			userSelectActive = true;
-			// 选择了文本，显示拼音按钮
-			floatBtn.style.display = 'block';
+
+			// 获取选区包围盒
+			if (sel.rangeCount > 0) {
+				const range = sel.getRangeAt(0);
+				const rect = range.getBoundingClientRect();
+				cachedSeclectedRect = rect;
+				// 先让按钮显示，才能拿到自身宽高
+				floatBtn.style.display = 'block';
+				placeEle(floatBtn, cachedSeclectedRect) ;
+			}
 		} else {
 			// currentText为空：区分两种场景
 			// 如果userSelectActive=true：说明是Calibre原生控件点击导致清空选区，不覆盖cachedSelectedText！
 			// 只重置标记，保留缓存的文字
 			if (userSelectActive) {
-				// 不执行 cachedSelectedText = "";保留上次选中内容
+				// 不执行 cachedSelectedText = '';保留上次选中内容
 				userSelectActive = false;
 			} else {
 				// 本来就没有选区，清空缓存
-				cachedSelectedText = "";
+				cachedSelectedText = '';
+				cachedSeclectedRect = null;
 			}
 		}
+	}
+
+	function placeEle(ele, anchorRect) {
+		const eleH = ele.offsetHeight;
+		const eleW = ele.offsetWidth;
+		const gap = 6; // 和选区之间的间距
+		let top, left;
+
+		// 优先放选区下方
+		if (anchorRect.bottom + gap + eleH <= window.innerHeight) {
+			top = anchorRect.bottom + gap;
+		} else {
+			// 下方放不下，放到选区上方
+			top = anchorRect.top - gap - eleH;
+			// 防止贴到上边视口外面
+			if (top < 4) top = 4;
+		}
+		// 水平对齐选区左边缘，不越出视口右侧
+		left = anchorRect.left - (eleW - anchorRect.width) / 2;
+		if (left + eleW > window.innerWidth) {
+			left = window.innerWidth - eleW - 4;
+		}
+		// 防止贴到左边视口外面
+		if (left < 4) left = 4;
+		ele.style.top = top + 'px';
+		ele.style.left = left + 'px';
 	}
 
 	/**************创建拼音数据**************/
@@ -604,8 +641,8 @@
 	async function loadJsonFile(jsonPath) {
 		return new Promise((resolve, reject) => {
 			const xhr = new XMLHttpRequest();
-			xhr.open("GET", jsonPath, true);
-			xhr.responseType = "blob";
+			xhr.open('GET', jsonPath, true);
+			xhr.responseType = 'blob';
 			xhr.onload = async () => {
 				if (xhr.status >= 200 && xhr.status < 300) {
 					const blob = xhr.response;
@@ -617,10 +654,10 @@
 						reject(err);
 					}
 				} else {
-					reject(new Error("Load failed, status:" + xhr.status));
+					reject(new Error('Load failed, status:' + xhr.status));
 				}
 			};
-			xhr.onerror = () => reject(new Error("Network error"));
+			xhr.onerror = () => reject(new Error('Network error'));
 			xhr.send(null);
 		});
 	}
@@ -633,13 +670,13 @@
 		dictLoading = true;
 		try {
 			// 相对路径，xhtml在OEBPS/Text，json放在OEBPS/scripts，按需修改路径
-			const rawSingle = await loadJsonFile("../scripts/pinyin_dict.json");
-			const rawPhrase = await loadJsonFile("../scripts/phrases_dict.json");
+			const rawSingle = await loadJsonFile('../scripts/pinyin_dict.json');
+			const rawPhrase = await loadJsonFile('../scripts/phrases_dict.json');
 
 			// ========== 单字字典 PINYIN_CODE_MAP：key=字符码点16进制 ==========
 			const PINYIN_CODE_MAP = {};
 			for (const [hanzi, pinyinStr] of Object.entries(rawSingle)) {
-				const ch = hanzi.normalize("NFC");
+				const ch = hanzi.normalize('NFC');
 				const cpHex = ch.codePointAt(0).toString(16);
 				PINYIN_CODE_MAP[cpHex] = pinyinStr;
 			}
@@ -647,7 +684,7 @@
 			// ========== 词语字典 PHRASES_CODE_MAP：key=词语原文（NFC归一），value拼音数组 ==========
 			const PHRASES_CODE_MAP = {};
 			for (const [phrase, pinyinArr] of Object.entries(rawPhrase)) {
-				const phraseNorm = phrase.normalize("NFC");
+				const phraseNorm = phrase.normalize('NFC');
 				PHRASES_CODE_MAP[phraseNorm] = pinyinArr;
 			}
 
@@ -658,7 +695,7 @@
 			//console.log(`Dict loaded: single=${Object.keys(PINYIN_CODE_MAP).length}, phrase=${Object.keys(PHRASES_CODE_MAP).length}`);
 			return true;
 		} catch (e) {
-			console.error("Build pinyin map error:", e);
+			console.error('Build pinyin map error:', e);
 			return false;
 		} finally {
 			dictLoading = false; // 无论拼音数据加载成功失败，释放锁
@@ -670,10 +707,10 @@
 	 * @returns {string} 拼装好的带ruby的HTML
 	 */
 	function renderPinyinHtml(selectedText) {
-		const txt = selectedText.normalize("NFC");
+		const txt = selectedText.normalize('NFC');
 		const phraseMap = window.PHRASES_CODE_MAP;
 		const charMap = window.PINYIN_CODE_MAP;
-		let htmlOut = "";
+		let htmlOut = '';
 
 		// 1. 选择文本长度>1，优先查词语字典，查不到逐字处理
 		if (txt.length > 1) {
@@ -717,72 +754,87 @@
 		return htmlOut;
 	}
 
+	function ensureStyle() {
+		if (!document.querySelector('#phonetic-style')) {
+				const style = document.createElement('style');
+				style.id = 'phonetic-style';
+				style.textContent = `
+				#note‑overlay {
+					position:fixed;
+					inset:0;
+					background:rgba(0,0,0,0.55);
+					z-index:2147483647;
+					align-items:center;
+					justify-content:center;
+					padding:16px;
+					box-sizing:border-box;
+					display:none;
+				}
+				#note‑popup‑box {
+					background:#fff;
+					color:#000;
+					max-width:85vw;
+					max-height:80vh;
+					width:min(32em, 85vw);
+					overflow:auto;
+					border-radius:8px;
+					padding:14px;
+					box-sizing:border-box;
+					box-shadow:0 4px 14px rgba(0,0,0,0.3);
+				}
+				#note‑popup‑box button {
+					float:right;
+					border:none;
+					background:#f00;
+					color:#fff;
+					border-radius:4px;
+					padding:3px 8px;
+					cursor:pointer;
+					margin-bottom:8px;
+				}
+				#pinyin-float-btn {
+					user-select: none;
+					-webkit-user-select: none;
+					display: none;
+					position:fixed;
+				  padding:4px 8px;
+				  background:#f00;
+				  color:#fff;
+				  border:none;
+				  border-radius:4px;
+				  font-size:14px;
+				  pointer-events:auto;
+				  display:none;
+				  z-index:2147483647;
+				}
+				ruby {
+					ruby-position: over;
+				}
+				rt {
+					font-size: 0.8em;
+					line-height: 1.5;
+					color: red;
+				}`;
+				(document.head || document.documentElement).appendChild(style);
+			}
+	}
 
 	function init() {
+		ensureStyle();
 		DualAnnoLayout.activate('.dual-layout', { annoClass: "anno" });
-		/*const observer = new IntersectionObserver(es => es.forEach(e => {
-      if (e.isIntersecting) {
-        if (!e.target.DualAnnoLayout) {
-          e.target.DualAnnoLayout = new DualAnnoLayout(e.target, {annoClass:"anno"});
-          e.target.DualAnnoLayout.render();
-        } else {
-          e.target.DualAnnoLayout.render();
-        }
-      }
-    }));
-
-    document.querySelectorAll('.dual-layout').forEach(el => observer.observe(el));*/
-
-		// --------------------------
-		// 脚注弹窗：动态创建遮罩+居中弹窗
-		// --------------------------
-		// 创建遮罩层
 		const noteOverlay = document.createElement('div');
-		noteOverlay.id = "note‑overlay";
-		noteOverlay.style.cssText = `
-        position:fixed;
-        inset:0;
-        background:rgba(0,0,0,0.55);
-        z-index:2147483647;
-        align-items:center;
-        justify-content:center;
-        padding:16px;
-        box-sizing:border-box;
-    `;
-		noteOverlay.style.display = "none";
+		noteOverlay.id = 'note‑overlay';
 
 		// 创建弹窗盒子
 		const notePopup = document.createElement('div');
-		notePopup.className = "note‑popup‑box";
-		notePopup.style.cssText = `
-        background:#fff;
-        color:#000;
-        max-width:85vw;
-        max-height:80vh;
-        width:min(32em, 85vw);
-        overflow:auto;
-        border-radius:8px;
-        padding:14px;
-        box-sizing:border-box;
-        box-shadow:0 4px 14px rgba(0,0,0,0.3);
-    `;
+		notePopup.id = 'note‑popup‑box';
 
 		// 关闭按钮
 		const closeBtn = document.createElement('button');
-		closeBtn.textContent = "\u00D7";
-		closeBtn.style.cssText = `
-        float:right;
-        border:none;
-        background:#f00;
-        color:#fff;
-        border-radius:4px;
-        padding:3px 8px;
-        cursor:pointer;
-        margin-bottom:8px;
-    `;
+		closeBtn.textContent = '\u00D7';
 
 		const noteContentWrap = document.createElement('div');
-		noteContentWrap.className = "note‑content";
+		noteContentWrap.className = 'note‑content';
 
 		notePopup.appendChild(closeBtn);
 		notePopup.appendChild(noteContentWrap);
@@ -791,8 +843,8 @@
 
 		// 关闭弹窗函数
 		function closeNotePopup() {
-			noteOverlay.style.display = "none";
-			noteContentWrap.innerHTML = "";
+			noteOverlay.style.display = 'none';
+			noteContentWrap.innerHTML = '';
 		}
 
 		closeBtn.addEventListener('click', closeNotePopup);
@@ -802,7 +854,15 @@
 				closeNotePopup();
 			}
 		});
-
+		// HTML页面中已经有拼音按钮则取消下面一行的注释
+		floatBtn = document.getElementById('pinyin-float-btn');
+		// 不存在则创建按钮
+		if (!floatBtn) {
+			floatBtn = document.createElement('button');
+			floatBtn.id = 'pinyin-float-btn';
+			floatBtn.textContent = '\u62fc\u97f3'; // 拼音
+			document.body.appendChild(floatBtn);
+		}
 		// =========事件委托：监听整个document，适配Calibre翻页重建DOM，不需要重复绑定=========
 		document.addEventListener('click', function(e) {
 			// 优先级1：判断是否点击拼音按钮
@@ -813,11 +873,11 @@
 				if (!cachedSelectedText.trim()) return;
 
 				noteContentWrap.innerHTML = renderPinyinHtml(cachedSelectedText);
-				noteOverlay.style.display = "flex";
+				noteOverlay.style.display = 'flex';
+				placeEle(noteOverlay, cachedSeclectedRect);
 				targetBtn.style.display = 'none';
 				return;
 			}
-
 			// 优先级2：判断是否点击脚注引用 a.noteref
 			const refEl = e.target.closest('a.noteref');
 			if (refEl) {
@@ -835,8 +895,12 @@
 			}
 		});
 
-		// 监听选择变化,显示拼音按钮
-		document.addEventListener("selectionchange", handleSelection);
+		// 监听选中开始事件，标记进入手动选中状态
+		document.addEventListener('selectstart', () => {
+			isSelecting = true;
+		});
+		// 鼠标抬起时，如果isSelecting为true，则完成了文本选择,显示拼音按钮
+		document.addEventListener('mouseup', handleSelection);
 
 	}
 
@@ -852,8 +916,6 @@
 		const ok = await buildPinyinCodeMap();  // 确保拼音数据库创建成功
 		if (ok) {
 			init();
-const story = document.querySelector('.story');
-console.log(story.innerHTML);
 		}
 	});
 

@@ -207,29 +207,5 @@ h4 {
 	border-radius: 8px;
 	box-shadow: 0 2px 16px rgba(0, 0, 0, 0.2);
 }
-#pinyin-float-btn {
-	position: fixed;
-	top: 50%;
-	transform: translatey(-50%);
-	right: 12px;
-	z-index: 2147483647;
-	padding: 4px 8px;
-	background: #f00;
-	color: #fff;
-	border: none;
-	border-radius: 4px;
-	font-size: 14px;
-	pointer-events: auto;
-	user-select: none;
-	-webkit-user-select: none;
-	display: none;
-}
-ruby {
-    ruby-position: over;
-}
-rt {
-    font-size: 0.8em;
-    line-height: 1.2;
-    color: red;
-}
+
 
