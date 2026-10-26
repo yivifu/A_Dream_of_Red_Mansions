@@ -70,81 +70,14 @@
 		ele.style.left = left + 'px';
 	}
 
-	/**************创建拼音数据**************/
-
-	// 加载单个json文件，blob方案，避免发生键值文本不规范引起的查找失败
-	async function loadJsonFile(jsonPath) {
-		return new Promise((resolve, reject) => {
-			const xhr = new XMLHttpRequest();
-			xhr.open('GET', jsonPath, true);
-			xhr.responseType = 'blob';
-			xhr.onload = async () => {
-				if (xhr.status >= 200 && xhr.status < 300) {
-					const blob = xhr.response;
-					const text = await blob.text();
-					try {
-						const rawObj = JSON.parse(text);
-						resolve(rawObj);
-					} catch (err) {
-						reject(err);
-					}
-				} else {
-					reject(new Error('Load failed, status:' + xhr.status));
-				}
-			};
-			xhr.onerror = () => reject(new Error('Network error'));
-			xhr.send(null);
-		});
-	}
-
-	// 构造拼音数据字典
-	async function buildPinyinCodeMap() {
-		// 已挂载拼音数据，直接返回
-		if (window.PINYIN_CODE_MAP && window.PHRASES_CODE_MAP) return true;
-		if (dictLoading) return false; // 正在加载中，直接返回，防止并发请求
-		dictLoading = true;
-		try {
-			// 相对路径，xhtml在OEBPS/Text，json放在OEBPS/scripts，按需修改路径
-			const rawSingle = await loadJsonFile('../scripts/pinyin_dict.json');
-			const rawPhrase = await loadJsonFile('../scripts/phrases_dict.json');
-
-			// ========== 单字字典 PINYIN_CODE_MAP：key=字符码点16进制 ==========
-			const PINYIN_CODE_MAP = {};
-			for (const [hanzi, pinyinStr] of Object.entries(rawSingle)) {
-				const ch = hanzi.normalize('NFC');
-				const cpHex = ch.codePointAt(0).toString(16);
-				PINYIN_CODE_MAP[cpHex] = pinyinStr;
-			}
-
-			// ========== 词语字典 PHRASES_CODE_MAP：key=词语原文（NFC归一），value拼音数组 ==========
-			const PHRASES_CODE_MAP = {};
-			for (const [phrase, pinyinArr] of Object.entries(rawPhrase)) {
-				const phraseNorm = phrase.normalize('NFC');
-				PHRASES_CODE_MAP[phraseNorm] = pinyinArr;
-			}
-
-			// 挂载全局，供查询逻辑使用
-			window.PINYIN_CODE_MAP = PINYIN_CODE_MAP;
-			window.PHRASES_CODE_MAP = PHRASES_CODE_MAP;
-
-			//console.log(`Dict loaded: single=${Object.keys(PINYIN_CODE_MAP).length}, phrase=${Object.keys(PHRASES_CODE_MAP).length}`);
-			return true;
-		} catch (e) {
-			console.error('Build pinyin map error:', e);
-			return false;
-		} finally {
-			dictLoading = false; // 无论拼音数据加载成功失败，释放锁
-		}
-	}
-
 	/**
 	 * @param {string} selectedText 用户选中的文本
 	 * @returns {string} 拼装好的带ruby的HTML
 	 */
 	function renderPinyinHtml(selectedText) {
 		const txt = selectedText.normalize('NFC');
-		const phraseMap = window.PHRASES_CODE_MAP;
-		const charMap = window.PINYIN_CODE_MAP;
+		const phraseMap = window.__PHRASES_MAP__;
+		const charMap = window.__PHONETIC_MAP__;
 		let htmlOut = '';
 
 		// 1. 选择文本长度>1，优先查词语字典，查不到逐字处理
@@ -163,10 +96,7 @@
 			// 1.2. 词语没找到，逐字处理，为了美观多音字只取排第一的拼音
 			for (const ch of txt) {
 				const cp = ch.codePointAt(0);
-				// 过滤零宽字符
-				if ([0x200B, 0x200C, 0x200D].includes(cp)) continue;
-				const cpHex = cp.toString(16);
-				const pyStr = charMap[cpHex];
+				const pyStr = charMap[ch];
 				if (pyStr) {
 					const py = pyStr.split(',')[0];
 					htmlOut += `<ruby>${ch}<rt>${py}\u00A0</rt></ruby>\u00A0`;
@@ -178,9 +108,7 @@
 		}
 
 		// 2. 选择文本只有单个字：多音字标注出所有拼音
-		const cp = txt.codePointAt(0);
-		const cpHex = cp.toString(16);
-		const pyStr = charMap[cpHex].replace(',', ' / ');
+		const pyStr = charMap[txt].replace(',', ' / ');
 		if (pyStr) {
 			htmlOut += `<ruby>${txt}<rt>${pyStr}</rt></ruby>`;
 		} else {
@@ -255,8 +183,8 @@
 	}
 
 	function init() {
-		ensureStyle();
-		DualAnnoLayout.activate('.dual-layout', { annoClass: "anno" });
+		ensureStyle();		
+		window.dualAnnoLayout.activate('.dual-layout', { annoClass: "anno" });
 		const noteOverlay = document.createElement('div');
 		noteOverlay.id = 'note‑overlay';
 
@@ -349,10 +277,5 @@
 		}
 	}
 
-	whenDOMReady(async function() {
-		const ok = await buildPinyinCodeMap();  // 确保拼音数据库创建成功
-		if (ok) {
-			init();
-		}
-	});
+	whenDOMReady(init);
 })();

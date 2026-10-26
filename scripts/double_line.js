@@ -1,4 +1,5 @@
-class DualAnnoLayout {
+(function(){
+	class DualAnnoLayout {
 	constructor(element, option = {}) {
 		this.element = element;
 		this.container = document.querySelector('.story') || element.parentElement;
@@ -677,3 +678,5 @@ class DualAnnoLayout {
 			.map(el => new DualAnnoLayout(el, option));
 	}
 }
+window.dualAnnoLayout = DualAnnoLayout;
+})();
