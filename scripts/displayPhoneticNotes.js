@@ -183,8 +183,7 @@
 	}
 
 	function init() {
-		ensureStyle();		
-		window.dualAnnoLayout.activate('.dual-layout', { annoClass: "anno" });
+		ensureStyle();
 		const noteOverlay = document.createElement('div');
 		noteOverlay.id = 'note‑overlay';
 
@@ -229,10 +228,10 @@
 		// =========事件委托：监听整个document，适配Calibre翻页重建DOM，不需要重复绑定=========
 		document.addEventListener('click', function(e) {
 			// 优先级1：判断是否点击拼音按钮
-			const targetBtn = e.target.closest('button#pinyin-float-btn');		
+			const targetBtn = e.target.closest('button#pinyin-float-btn');
 			if (targetBtn) {
 				e.preventDefault();
-				e.stopPropagation();				
+				e.stopPropagation();
 				targetBtn.style.display = 'none';
 				if (!cachedSelectedText.trim()) return;
 
