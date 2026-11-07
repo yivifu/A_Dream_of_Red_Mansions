@@ -1,0 +1,22 @@
+# 1) 忽略所有 txt、docx等扩展名文件（任意层级）
+*.txt
+*.docx
+*.vbs
+**/test.*
+make_epub/rebuild_epub.py
+
+# 2) 忽略项目根目录下的 backup 文件夹及其所有内容
+backup/
+
+# 3) 忽略任意层级的 .idea 文件夹及其所有内容
+.idea/
+
+# 4) 忽略任意层级的 .venv 文件夹及其所有内容
+.venv/
+
+# 5) 忽略任意层级的 .git 文件夹及其所有内容
+.git/
+
+/images/赞赏码.jpg
+/test/
+
